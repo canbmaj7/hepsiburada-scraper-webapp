@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hepsiburada Ürün Arama</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #FF6000 0%, #FF8C42 100%);
+            min-height: 100vh;
+            padding-top: 80px;
+        }
+        
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            color: #FF6000;
+            margin: 0;
+            white-space: nowrap;
+        }
+        
+        .cart-summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.2em;
+            }
+            
+            .cart-summary {
+                gap: 5px;
+            }
+            
+            .export-btn, .shutdown-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .cart-count {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+        
+        .cart-count {
+            background: #FF6000;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        
+        .export-btn {
+            background: #48bb78;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .export-btn:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .search-box {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .search-input:focus {
+            border-color: #FF6000;
+            box-shadow: 0 0 0 3px rgba(255, 96, 0, 0.1);
+        }
+        
+        .btn-primary {
+            background: #FF6000;
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: #ff7c26;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 96, 0, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.6;
+        }
+        
+        .btn-primary:disabled:hover {
+            background: #a0aec0;
+            transform: none;
+        }
+        
+        .results {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .results h2 {
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        
+        .product-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 25px;
+        }
+        
+        .product-card {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #FF6000;
+        }
+        
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            background: white;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .product-info {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        
+        .product-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 60px;
+        }
+        
+        .product-stock {
+            color: #718096;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .product-actions {
+            margin-top: auto;
+        }
+        
+        .cart {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .cart h2 {
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        
+        .cart-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .cart-item img {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+            margin-right: 15px;
+            background: white;
+            padding: 5px;
+            border-radius: 8px;
+        }
+        
+        .cart-item-info {
+            flex: 1;
+        }
+        
+        .cart-item-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .cart-item-details {
+            font-size: 12px;
+            color: #718096;
+        }
+        
+        .delete-btn {
+            background: #f56565;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #FF6000;
+            font-size: 18px;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FF6000;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .results-count {
+            background: #FF6000;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #a0aec0;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        
+        .quantity-input {
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            width: 100%;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .quantity-input:focus {
+            outline: none;
+            border-color: #FF6000;
+            box-shadow: 0 0 0 3px rgba(255, 96, 0, 0.1);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .btn-cancel {
+            background: #e2e8f0;
+            color: #4a5568;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-cancel:hover {
+            background: #cbd5e0;
+        }
+        
+        .btn-add {
+            background: #48bb78;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-add:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .quantity-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .quantity-btn-minus {
+            background: #f56565;
+            color: white;
+        }
+        
+        .quantity-btn-plus {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .quantity-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .quantity-display {
+            min-width: 40px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .cart-quantity {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 10px;
+        }
+        
+        .cart-quantity button {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .cart-quantity-minus {
+            background: #f56565;
+            color: white;
+        }
+        
+        .cart-quantity-plus {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .cart-quantity-display {
+            min-width: 30px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .cart-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Karanlık Tema */
+        .theme-toggle {
+            background: #FF6000;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .theme-toggle:hover {
+            background: #ff7c26;
+            transform: scale(1.05);
+        }
+        
+        body.dark-mode {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+        
+        body.dark-mode .header {
+            background: #1a202c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        body.dark-mode .header h1 {
+            color: #FF6000;
+        }
+        
+        body.dark-mode .theme-toggle {
+            background: #2d3748;
+        }
+        
+        body.dark-mode .theme-toggle:hover {
+            background: #4a5568;
+        }
+        
+        body.dark-mode .search-box,
+        body.dark-mode .results,
+        body.dark-mode .cart,
+        body.dark-mode .modal-content {
+            background: #2d3748;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        body.dark-mode .search-input {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-color: #4a5568;
+        }
+        
+        body.dark-mode .results h2,
+        body.dark-mode .cart h2,
+        body.dark-mode .modal-content h3,
+        body.dark-mode .product-name,
+        body.dark-mode .cart-item-name,
+        body.dark-mode .quantity-display,
+        body.dark-mode .cart-quantity-display {
+            color: #e2e8f0;
+        }
+        
+        body.dark-mode .product-card {
+            background: #1a202c;
+            border-color: #4a5568;
+        }
+        
+        body.dark-mode .cart-item {
+            background: #1a202c;
+            border-color: #4a5568;
+        }
+        
+        body.dark-mode .product-image {
+            background: #2d3748;
+        }
+        
+        body.dark-mode .cart-item img {
+            background: #2d3748;
+        }
+        
+        body.dark-mode .product-stock,
+        body.dark-mode .cart-item-details,
+        body.dark-mode .empty {
+            color: #a0aec0;
+        }
+        
+        body.dark-mode .quantity-input {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-color: #4a5568;
+        }
+        
+        body.dark-mode .btn-cancel {
+            background: #4a5568;
+            color: white;
+        }
+        
+        body.dark-mode .btn-cancel:hover {
+            background: #5a6578;
+        }
+        
+        body.dark-mode .loading-spinner {
+            border: 4px solid #2d3748;
+            border-top: 4px solid #FF6000;
+        }
+        
+        body.dark-mode .modal {
+            background: rgba(0,0,0,0.7);
+        }
+        
+        /* Ek Özellikler */
+        .clear-cart-btn {
+            background: #f56565;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        
+        .clear-cart-btn:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+        
+        .cart-summary-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f0f7ff;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        body.dark-mode .cart-summary-info {
+            background: #1a202c;
+        }
+        
+        .cart-total {
+            font-weight: bold;
+            font-size: 18px;
+            color: #FF6000;
+        }
+        
+        .search-history {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 10px;
+        }
+        
+        body.dark-mode .search-history {
+            background: #2d3748;
+        }
+        
+        .search-history-item {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 5px;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        body.dark-mode .search-history-item {
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        
+        .search-history-item:hover {
+            background: #FF6000;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .copy-barcode-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #718096;
+            transition: all 0.3s;
+        }
+        
+        .copy-barcode-btn:hover {
+            color: #FF6000;
+            transform: scale(1.2);
+        }
+        
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .cart-actions-top {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Animasyonlar */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .product-card {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        .cart-item {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        .search-history-item {
+            animation: fadeIn 0.2s ease-in;
+        }
+        
+        /* Loading State */
+        .btn-primary.loading {
+            position: relative;
+            pointer-events: none;
+        }
+        
+        .btn-primary.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            right: 20px;
+        }
+        
+        .search-btn-loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        
+        .add-btn-loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 5px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .btn-primary.pulse {
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        .add-product-btn.success {
+            animation: pulse 0.5s ease-in-out 2;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .add-product-btn.success {
+            animation: bounce 0.5s ease-in-out 2;
+        }
+        
+        /* Sayfalama Stilleri */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-btn {
+            background: white;
+            color: #FF6000;
+            border: 2px solid #FF6000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 14px;
+            min-width: 45px;
+        }
+        
+        .pagination-btn:hover {
+            background: #FF6000;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(255, 96, 0, 0.3);
+        }
+        
+        .pagination-btn.active {
+            background: #FF6000;
+            color: white;
+            border-color: #FF6000;
+        }
+        
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .shutdown-btn {
+            background: #f56565;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .shutdown-btn:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🛒 Hepsiburada Ürün Arama</h1>
+            <div class="cart-summary">
+                <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                <div class="cart-count">
+                    <span id="cartCount">0</span> ürün
+                </div>
+                <button onclick="shutdownApp()" class="shutdown-btn">🚪 Kapat</button>
+                <button onclick="exportToExcel()" class="export-btn">📄 Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="search-box">
+            <form class="search-form" onsubmit="searchProducts(event)">
+                <input type="text" id="barcodeInput" class="search-input" placeholder="Barkod veya ürün ismi girin..." required>
+                <button type="submit" id="searchBtn" class="btn-primary" disabled>🔍 Ara</button>
+            </form>
+        </div>
+
+        <div id="results" class="results">
+            <div class="results-header">
+                <h2>Bulunan Ürünler</h2>
+                <div id="resultsCount" class="results-count" style="display: none;">0 ürün</div>
+            </div>
+            <div id="productList" class="product-list"></div>
+            <div id="pagination" style="display: none; justify-content: center; margin-top: 30px; gap: 10px;"></div>
+        </div>
+
+        <div class="cart">
+            <div class="cart-header">
+                <h2>Sepetim</h2>
+                <div class="cart-actions-top">
+                    <button onclick="clearCart()" class="clear-cart-btn">🗑️ Sepeti Temizle</button>
+                </div>
+            </div>
+            <div id="cartSummaryInfo" class="cart-summary-info" style="display: none;">
+                <span>Toplam Adet:</span>
+                <span id="cartTotalQuantity" class="cart-total">0</span>
+            </div>
+            <div id="cartList"></div>
+        </div>
+        
+        <div class="search-history" id="searchHistory" style="display: none;">
+            <strong>Son Aramalar:</strong>
+            <div id="searchHistoryItems"></div>
+        </div>
+    </div>
+
+    <div id="quantityModal" class="modal">
+        <div class="modal-content">
+            <h3>Adet Girin</h3>
+            <input type="number" id="quantityInput" class="quantity-input" value="1" min="1">
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">İptal</button>
+                <button class="btn-add" onclick="addToCart()">Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentProducts = [];
+        let selectedProduct = null;
+        let selectedBarcode = null;
+        let cart = [];
+        let currentPage = 1;
+        const productsPerPage = 16;
+        
+        // Tema kontrolü
+        function loadTheme() {
+            const theme = localStorage.getItem('theme') || 'light';
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.querySelector('.theme-toggle').textContent = '☀️';
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.querySelector('.theme-toggle').textContent = '🌙';
+            }
+        }
+        
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            document.querySelector('.theme-toggle').textContent = isDark ? '☀️' : '🌙';
+        }
+        
+        // Sayfa yüklendiğinde tema yükle
+        loadTheme();
+
+        async function searchProducts(event) {
+            event.preventDefault();
+            const barcode = document.getElementById('barcodeInput').value;
+            const searchBtn = document.getElementById('searchBtn');
+            
+            // Butonu disable et ve loading göster
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="search-btn-loading"></span> Aranıyor...';
+            
+            const resultsDiv = document.getElementById('results');
+            const productList = document.getElementById('productList');
+            
+            resultsDiv.classList.add('show');
+            productList.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <div>🔍 Aranıyor, lütfen bekleyin...</div>
+                </div>
+            `;
+            
+            // Sonuç sayısını gizle
+            document.getElementById('resultsCount').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ barcode })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    productList.innerHTML = `<div class="loading">❌ ${data.error}</div>`;
+                    return;
+                }
+                
+                currentProducts = data.products;
+                selectedBarcode = barcode;
+                
+                // Arama geçmişine ekle
+                addToSearchHistory(barcode);
+                
+                if (data.products.length === 0) {
+                    productList.innerHTML = '<div class="loading">❌ Ürün bulunamadı</div>';
+                    return;
+                }
+                
+                // Her zaman ürünleri göster
+                displayProducts(data.products);
+                
+                // Sonuç sayısını göster
+                const resultsCount = document.getElementById('resultsCount');
+                if (data.products.length > 0) {
+                    resultsCount.textContent = `${data.products.length} ürün bulundu`;
+                    resultsCount.style.display = 'block';
+                } else {
+                    resultsCount.style.display = 'none';
+                }
+                
+            } catch (error) {
+                productList.innerHTML = '<div class="loading">❌ Hata oluştu</div>';
+            } finally {
+                // Butonu tekrar aktif et
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '🔍 Ara';
+            }
+        }
+        
+        function displayProducts(products) {
+            // Sayfa numarasını 1'e resetle
+            currentPage = 1;
+            
+            // İlk sayfayı göster
+            showPage(currentPage, products);
+        }
+        
+        function showPage(page, products) {
+            const productList = document.getElementById('productList');
+            const totalPages = Math.ceil(products.length / productsPerPage);
+            
+            // Hangi ürünler gösterilecek
+            const startIndex = (page - 1) * productsPerPage;
+            const endIndex = startIndex + productsPerPage;
+            const productsToShow = products.slice(startIndex, endIndex);
+            
+            // Ürünleri göster
+            productList.innerHTML = productsToShow.map((product, index) => {
+                const globalIndex = startIndex + index;
+                return `
+                    <div class="product-card">
+                        <img src="${product.image_url || 'https://via.placeholder.com/200'}" alt="${product.name}" class="product-image" onerror="this.src='https://via.placeholder.com/200'">
+                        <div class="product-info">
+                            <div class="product-name">${product.name}</div>
+                            <div class="product-stock">Stok: ${product.stock_code}</div>
+                            <div class="quantity-controls">
+                                <button class="quantity-btn quantity-btn-minus" onclick="decreaseQuantity(${globalIndex})">-</button>
+                                <div class="quantity-display" id="qty-${globalIndex}">1</div>
+                                <button class="quantity-btn quantity-btn-plus" onclick="increaseQuantity(${globalIndex})">+</button>
+                            </div>
+                            <div class="product-actions">
+                                <button class="btn-primary add-product-btn" style="width: 100%;" onclick="addProductToCart(${globalIndex})" data-index="${globalIndex}">Sepete Ekle</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Sayfalama butonlarını göster/gizle
+            const paginationDiv = document.getElementById('pagination');
+            if (totalPages > 1) {
+                let paginationHTML = '<div class="pagination">';
+                
+                // Önceki buton
+                if (page > 1) {
+                    paginationHTML += `<button class="pagination-btn" onclick="showPage(${page - 1}, currentProducts)">
+                        ← Önceki
+                    </button>`;
+                }
+                
+                // Sayfa numaraları (maksimum 5 sayfa göster)
+                const startPage = Math.max(1, page - 2);
+                const endPage = Math.min(totalPages, startPage + 4);
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    paginationHTML += `<button class="pagination-btn ${i === page ? 'active' : ''}" onclick="showPage(${i}, currentProducts)">
+                        ${i}
+                    </button>`;
+                }
+                
+                // Sonraki buton
+                if (page < totalPages) {
+                    paginationHTML += `<button class="pagination-btn" onclick="showPage(${page + 1}, currentProducts)">
+                        Sonraki →
+                    </button>`;
+                }
+                
+                paginationHTML += '</div>';
+                paginationDiv.innerHTML = paginationHTML;
+                paginationDiv.style.display = 'flex';
+            } else {
+                paginationDiv.style.display = 'none';
+            }
+        }
+        
+        function selectProduct(index) {
+            selectedProduct = currentProducts[index];
+            openModal();
+        }
+        
+        function openModal() {
+            document.getElementById('quantityModal').classList.add('show');
+        }
+        
+        function closeModal() {
+            document.getElementById('quantityModal').classList.remove('show');
+        }
+        
+        async function addToCart() {
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            
+            if (quantity < 1) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        barcode: selectedBarcode,
+                        product: selectedProduct,
+                        quantity: quantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal();
+                    loadCart();
+                    document.getElementById('barcodeInput').value = '';
+                }
+                
+            } catch (error) {
+                console.error('Hata oluştu:', error);
+            }
+        }
+        
+        async function loadCart() {
+            const response = await fetch('/api/products');
+            const data = await response.json();
+            cart = data.products;
+            
+            // Cart count update
+            document.getElementById('cartCount').textContent = cart.length;
+            
+            // Sepeti temizle butonu görünürlüğü
+            document.querySelector('.clear-cart-btn').style.display = cart.length === 0 ? 'none' : 'block';
+            
+            const cartList = document.getElementById('cartList');
+            if (cart.length === 0) {
+                cartList.innerHTML = '<div class="empty">Sepet boş</div>';
+                document.getElementById('cartSummaryInfo').style.display = 'none';
+                return;
+            }
+            
+            // Toplam adet hesapla
+            const totalQuantity = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+            document.getElementById('cartTotalQuantity').textContent = totalQuantity;
+            document.getElementById('cartSummaryInfo').style.display = 'flex';
+            
+            cartList.innerHTML = cart.map((item, index) => `
+                <div class="cart-item">
+                    <img src="${item.image_url || 'https://via.placeholder.com/70'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/70'">
+                    <div class="cart-item-info">
+                        <div class="cart-item-name">${item.name}</div>
+                        <div class="cart-item-details">
+                            Barkod: ${item.barcode} | Stok: ${item.stock_code}
+                            <button class="copy-barcode-btn" onclick="copyBarcode('${item.barcode}')" title="Kopyala">📋</button>
+                        </div>
+                    </div>
+                    <div class="cart-actions">
+                        <div class="cart-quantity">
+                            <button class="cart-quantity-minus" onclick="decreaseCartQuantity(${index})">-</button>
+                            <div class="cart-quantity-display">${item.quantity || 1}</div>
+                            <button class="cart-quantity-plus" onclick="increaseCartQuantity(${index})">+</button>
+                        </div>
+                        <button onclick="removeFromCart(${index})" class="delete-btn">Sil</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function clearCart() {
+            if (!confirm('Tüm ürünleri silmek istediğinize emin misiniz?')) {
+                return;
+            }
+            
+            // Tüm ürünleri sil
+            while (cart.length > 0) {
+                await fetch(`/api/delete/0`, { method: 'DELETE' });
+                cart.shift();
+            }
+            loadCart();
+        }
+        
+        function copyBarcode(barcode) {
+            navigator.clipboard.writeText(barcode);
+            
+            // Görsel geri bildirim
+            const btn = event.target;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '✅';
+            btn.style.color = '#48bb78';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.color = '';
+            }, 1000);
+        }
+        
+        async function removeFromCart(index) {
+            try {
+                const response = await fetch(`/api/delete/${index}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadCart();
+                }
+                
+            } catch (error) {
+                console.error('Hata oluştu:', error);
+            }
+        }
+        
+        async function exportToExcel() {
+            if (cart.length === 0) {
+                return;
+            }
+            
+            window.location.href = '/api/export';
+        }
+        
+        async function shutdownApp() {
+            if (!confirm('Uygulamayı kapatmak istediğinize emin misiniz?')) {
+                return;
+            }
+            
+            try {
+                await fetch('/api/shutdown', { method: 'POST' });
+                
+                // Tarayıcı sekmesini kapat (birkaç yöntem dene)
+                setTimeout(() => {
+                    try {
+                        window.close();
+                    } catch (e) {
+                        // window.close() bazı tarayıcılarda çalışmayabilir
+                        // Alternatif: Kendi kendini açan pencereler kapatılabilir
+                        console.log('Pencere kapatılamadı, sayfayı yenile');
+                    }
+                }, 500);
+                
+            } catch (error) {
+                console.error('Kapatma hatası:', error);
+            }
+        }
+        
+        // Input değiştiğinde butonu aktif et
+        document.getElementById('barcodeInput').addEventListener('input', function(event) {
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.disabled = event.target.value.trim() === '';
+        });
+        
+        // Enter tuşu ile arama
+        document.getElementById('barcodeInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                const searchBtn = document.getElementById('searchBtn');
+                if (!searchBtn.disabled) {
+                    searchProducts(event);
+                }
+            }
+        });
+        
+        // Ürün adeti kontrolü
+        function increaseQuantity(index) {
+            const qtyDisplay = document.getElementById(`qty-${index}`);
+            let qty = parseInt(qtyDisplay.textContent);
+            qtyDisplay.textContent = qty + 1;
+        }
+        
+        function decreaseQuantity(index) {
+            const qtyDisplay = document.getElementById(`qty-${index}`);
+            let qty = parseInt(qtyDisplay.textContent);
+            if (qty > 1) {
+                qtyDisplay.textContent = qty - 1;
+            }
+        }
+        
+        // Ürünü sepete ekle (direkt 1 adet ile)
+        async function addProductToCart(index) {
+            const qtyDisplay = document.getElementById(`qty-${index}`);
+            const quantity = parseInt(qtyDisplay.textContent);
+            const product = currentProducts[index];
+            
+            // Butonu bul ve disable et
+            const addBtn = document.querySelector(`.add-product-btn[data-index="${index}"]`);
+            const originalText = addBtn.textContent;
+            
+            // Ekleniyor durumu
+            addBtn.disabled = true;
+            addBtn.innerHTML = '<span class="add-btn-loading"></span> Ekleniyor...';
+            addBtn.style.background = '#48bb78';
+            
+            try {
+                const response = await fetch('/api/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        barcode: selectedBarcode,
+                        product: product,
+                        quantity: quantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Başarılı durum
+                    addBtn.innerHTML = '✅ Eklendi!';
+                    addBtn.style.background = '#48bb78';
+                    addBtn.classList.add('success');
+                    
+                    loadCart();
+                    document.getElementById('barcodeInput').value = '';
+                    
+                    // 2 saniye sonra normale dön
+                    setTimeout(() => {
+                        addBtn.disabled = false;
+                        addBtn.innerHTML = originalText;
+                        addBtn.style.background = '';
+                        addBtn.classList.remove('success');
+                    }, 2000);
+                } else {
+                    // Hata durumu
+                    addBtn.innerHTML = '❌ Hata';
+                    addBtn.style.background = '#f56565';
+                    setTimeout(() => {
+                        addBtn.disabled = false;
+                        addBtn.innerHTML = originalText;
+                        addBtn.style.background = '';
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('Hata oluştu:', error);
+                addBtn.innerHTML = '❌ Hata';
+                addBtn.style.background = '#f56565';
+                setTimeout(() => {
+                    addBtn.disabled = false;
+                    addBtn.innerHTML = originalText;
+                    addBtn.style.background = '';
+                }, 2000);
+            }
+        }
+        
+        // Sepet adeti kontrolü
+        async function increaseCartQuantity(index) {
+            const item = cart[index];
+            const newQuantity = (item.quantity || 1) + 1;
+            
+            try {
+                const response = await fetch('/api/update-quantity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        index: index,
+                        quantity: newQuantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    cart[index].quantity = newQuantity;
+                    loadCart();
+                }
+                
+            } catch (error) {
+                console.error('Hata oluştu:', error);
+            }
+        }
+        
+        async function decreaseCartQuantity(index) {
+            const item = cart[index];
+            const currentQty = item.quantity || 1;
+            
+            // Adet 1 ise bir şey yapma, sadece "Sil" butonuyla silinebilir
+            if (currentQty <= 1) {
+                return;
+            }
+            
+            const newQuantity = currentQty - 1;
+            
+            try {
+                const response = await fetch('/api/update-quantity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        index: index,
+                        quantity: newQuantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    cart[index].quantity = newQuantity;
+                    loadCart();
+                }
+                
+            } catch (error) {
+                console.error('Hata oluştu:', error);
+            }
+        }
+        
+        // Arama geçmişi fonksiyonları
+        function addToSearchHistory(searchTerm) {
+            let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+            
+            // Varsa çıkar, yoksa ekle
+            history = history.filter(item => item !== searchTerm);
+            history.unshift(searchTerm);
+            
+            // Son 5 aramayı tut
+            if (history.length > 5) {
+                history = history.slice(0, 5);
+            }
+            
+            localStorage.setItem('searchHistory', JSON.stringify(history));
+            displaySearchHistory();
+        }
+        
+        function displaySearchHistory() {
+            const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+            const historyDiv = document.getElementById('searchHistory');
+            const historyItems = document.getElementById('searchHistoryItems');
+            
+            if (history.length === 0) {
+                historyDiv.style.display = 'none';
+                return;
+            }
+            
+            historyDiv.style.display = 'block';
+            historyItems.innerHTML = history.map(item => `
+                <span class="search-history-item" onclick="searchFromHistory('${item}')">${item}</span>
+            `).join('');
+        }
+        
+        function searchFromHistory(term) {
+            document.getElementById('barcodeInput').value = term;
+            searchProducts(new Event('submit'));
+        }
+        
+        // Sayfa yüklendiğinde sepeti ve geçmişi yükle
+        loadCart();
+        displaySearchHistory();
+    </script>
+</body>
+</html>

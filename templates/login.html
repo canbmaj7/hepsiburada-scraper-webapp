@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hepsiburada - Giriş</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #FF6000 0%, #FF8C42 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 450px;
+            width: 100%;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #FF6000 0%, #FF8C42 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 5px 20px rgba(255, 96, 0, 0.3);
+        }
+        
+        .logo-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .logo-subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .login-form {
+            margin-top: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.3s;
+            background: #f7fafc;
+        }
+        
+        .form-input:focus {
+            border-color: #FF6000;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255, 96, 0, 0.1);
+        }
+        
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #FF6000 0%, #FF8C42 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 96, 0, 0.3);
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 96, 0, 0.4);
+        }
+        
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+            animation: shake 0.4s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-text {
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-icon">🛒</div>
+            <div class="logo-text">Hepsiburada</div>
+            <div class="logo-subtitle">Ürün Arama Sistemi</div>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <form class="login-form" onsubmit="login(event)">
+            <div class="form-group">
+                <label class="form-label" for="password">Şifre</label>
+                <input type="password" id="password" class="form-input" placeholder="Şifrenizi girin" required autofocus>
+            </div>
+            
+            <button type="submit" class="btn-login" id="loginBtn">
+                Giriş Yap
+            </button>
+            
+            <div class="info-text">
+                Şifrenizi bilmiyorsanız lütfen yöneticinizle iletişime geçin.
+            </div>
+        </form>
+    </div>
+
+    <script>
+        async function login(event) {
+            event.preventDefault();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const errorMsg = document.getElementById('errorMessage');
+            
+            // Butonu loading durumuna al
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="loading"></span> Giriş yapılıyor...';
+            errorMsg.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Başarılı - Ana sayfaya yönlendir
+                    window.location.href = '/';
+                } else {
+                    // Hata göster
+                    errorMsg.textContent = data.error || 'Yanlış şifre!';
+                    errorMsg.classList.add('show');
+                    document.getElementById('password').value = '';
+                    
+                    // Butonu normale döndür
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = 'Giriş Yap';
+                }
+            } catch (error) {
+                console.error('Giriş hatası:', error);
+                errorMsg.textContent = 'Bir hata oluştu. Lütfen tekrar deneyin.';
+                errorMsg.classList.add('show');
+                
+                // Butonu normale döndür
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'Giriş Yap';
+            }
+        }
+        
+        // Enter tuşu ile giriş
+        document.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                document.querySelector('.login-form').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>
+
