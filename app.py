@@ -13,10 +13,25 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# .env dosyasını yükle
+# .env dosyasını yükle (PyInstaller uyumlu)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    base_dirs = [
+        os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.getcwd(),
+        getattr(sys, '_MEIPASS', ''),
+        os.getcwd(),
+    ]
+    loaded = False
+    for base in base_dirs:
+        if not base:
+            continue
+        env_path = os.path.join(base, '.env')
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            loaded = True
+            break
+    if not loaded:
+        load_dotenv()
 except ImportError:
     pass
 
@@ -28,42 +43,54 @@ GOOGLE_SHEET_URL = os.getenv('GOOGLE_SHEET_URL', '')
 DEVELOPMENT_MODE = os.getenv('DEVELOPMENT_MODE', 'False').lower() == 'true'
 
 def get_password_from_sheet():
-    """Google Sheets'ten B5 hücresindeki şifreyi al"""
+    """Google Sheets'ten B5 hücresindeki şifreyi al (EXE uyumlu ve dayanıklı)."""
     if DEVELOPMENT_MODE:
         return None
-    
-    if not GOOGLE_SHEET_URL:
-        print("⚠️ GOOGLE_SHEET_URL bulunamadı, .env dosyasını kontrol edin")
-        return None  # Varsayılan şifre
-    
-    try:
-        # CSV olarak export URL
-        csv_url = GOOGLE_SHEET_URL.replace('/edit?gid=', '/export?format=csv&gid=')
-        if 'gid=' not in GOOGLE_SHEET_URL:
-            csv_url = GOOGLE_SHEET_URL.replace('/edit', '/export?format=csv')
-        
-        # CSV okumayı dene
-        df = pd.read_csv(csv_url)
-        
-        # B5 hücresi için veri kontrolü
-        # CSV'de header varsa index 0'dan başlar, B5 = 5. satır = index 4
-        # Satır sayısı kontrolü: en az 5 satır olmalı
-        if len(df) >= 4 and len(df.columns) >= 2:
-            # 4. satır (index 3) = B4 değil, B5 için 5. satır gerekli
-            # En son satırı al (B5 varsa)
-            if len(df) >= 5:
-                password = df.iloc[4, 1]  # Satır 4 (5. satır = B5)
-            else:
-                # Satır yoksa son satırı al
-                password = df.iloc[len(df)-1, 1]
-            print(f"✅ Şifre Google Sheets'ten alındı: {password}")
-            return str(password).strip()
+
+    sheet_id = os.getenv('SHEET_ID', '').strip()
+    sheet_url = os.getenv('GOOGLE_SHEET_URL', '').strip()
+
+    # CSV URL oluştur
+    csv_url = ''
+    if sheet_url:
+        if '/export?format=csv' in sheet_url:
+            csv_url = sheet_url
         else:
-            print(f"⚠️ Google Sheets formatı beklenmiyor (satır: {len(df)}, sütun: {len(df.columns)})")
+            csv_url = sheet_url.replace('/edit?gid=', '/export?format=csv&gid=')
+            csv_url = csv_url.replace('/edit#gid=', '/export?format=csv&gid=')
+            if 'export?format=csv' not in csv_url:
+                csv_url = sheet_url.rstrip('/') + '/export?format=csv'
+    elif sheet_id:
+        csv_url = f'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv'
+    else:
+        print('⚠️ Ne GOOGLE_SHEET_URL ne de SHEET_ID tanımlı.')
+        return None
+
+    # requests ile CSV çek (EXE'de daha stabil)
+    try:
+        import requests, csv, io
+        resp = requests.get(csv_url, timeout=8)
+        resp.raise_for_status()
+        reader = csv.reader(io.StringIO(resp.text))
+        rows = list(reader)
+        if not rows:
+            print('⚠️ Sheets CSV boş döndü')
             return None
+        # B5 (5. satır, 2. sütun) yoksa son satırın 2. sütunu
+        if len(rows) >= 5 and len(rows[4]) >= 2:
+            password = rows[4][1]
+        else:
+            last = rows[-1]
+            password = last[1] if len(last) >= 2 else ''
+        password = (password or '').strip().strip('"')
+        if not password:
+            print('⚠️ Sheets B sütununda şifre bulunamadı')
+            return None
+        print('✅ Şifre Google Sheets\'ten alındı')
+        return password
     except Exception as e:
-        print(f"❌ Google Sheets hatası: {e}")
-        return None  # Hata durumunda varsayılan
+        print(f'❌ Google Sheets isteği başarısız: {e}')
+        return None
 
 # NOT: CORRECT_PASSWORD kullanılmıyor, her login'de dinamik olarak alınıyor
 
@@ -428,20 +455,20 @@ def export_excel():
         return jsonify({'error': 'Export edilecek ürün yok'}), 400
     
     try:
-        # Sepetteki ürünleri dataframe'e çevir
+        weekday_map = {0:'Pazartesi',1:'Salı',2:'Çarşamba',3:'Perşembe',4:'Cuma',5:'Cumartesi',6:'Pazar'}
+        today_day = weekday_map[datetime.now().weekday()]
+        
         export_data = []
         for p in found_products:
-            # barcode alanı yoksa boş bırak
-            barcode = p.get('barcode', '')
             export_data.append({
+                'BarkodNo': p.get('barcode', ''),
                 'StokKodu': p.get('stock_code', ''),
                 'Ürünİsmi': p.get('name', ''),
-                'Adet': p.get('quantity', 1)
+                'GÜN': today_day
             })
         
         df = pd.DataFrame(export_data)
         
-        # Geçici dosya oluştur
         filename = f"bulunanlar_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         
         # Temp dizin kullan (EXE için)
