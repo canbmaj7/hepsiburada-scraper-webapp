@@ -3,6 +3,7 @@ import re
 import time
 import sys
 from typing import List, Dict
+from collections import OrderedDict
 from datetime import datetime
 import pandas as pd
 import os
@@ -245,23 +246,8 @@ class HepsiburadaScraper:
             href_match = re.search(r'href="([^"]*?)"', card_html)
             if href_match:
                 href = href_match.group(1)
-                
-                stock_code_patterns = [
-                    r'-pm-(HBC[^/?]*)',
-                    r'-p-(HBC[^/?]*)',
-                    r'(HBCV\d+[^%]*)',  # HBCV ile başlayan ve % işaretinden önce duran
-                    r'(HBC\d+[^%]*)',  # HBC ile başlayan ve % işaretinden önce duran
-                ]
-                
-                stock_code = "Bulunamadı"
-                for pattern in stock_code_patterns:
-                    stock_code_match = re.search(pattern, href)
-                    if stock_code_match:
-                        stock_code = stock_code_match.group(1)
-                        break
-                
-                # Stok kodunu temizle
-                product['stock_code'] = self.clean_stock_code(stock_code)
+                stock_code = self.extract_stock_code_from_url(href)
+                product['stock_code'] = stock_code
 
             # Görsel URL
             img_match = re.search(r'<img[^>]*src="([^"]*)"[^>]*>', card_html)
@@ -275,6 +261,45 @@ class HepsiburadaScraper:
 
         return products
 
+    def extract_stock_code_from_url(self, url: str) -> str:
+        """Hepsiburada ürün URL'sinden stok kodunu çıkarır ve UPPERCASE döner.
+        Öncelik: HBV/HBCV -> pm-/p- sonrası kod -> yol sonu bloğu.
+        """
+        try:
+            from urllib.parse import urlparse, unquote
+            parsed = urlparse(url or '')
+            path = unquote(parsed.path or '')
+
+            # 1) HB varyantları (case-insensitive)
+            m = re.search(r'(HBCV[0-9A-Z]+)', path, re.IGNORECASE)
+            if not m:
+                m = re.search(r'(HBV[0-9A-Z]+)', path, re.IGNORECASE)
+            if not m:
+                m = re.search(r'(HBC[0-9A-Z]+)', path, re.IGNORECASE)
+            if m:
+                code = m.group(1)
+                code = re.sub(r'[^0-9A-Z]', '', code.upper())
+                return code[:24]
+
+            # 2) pm-/p- sonrası alfasayısal blok
+            m = re.search(r'/(?:pm|p)-([a-z0-9]+)', path, re.IGNORECASE)
+            if m:
+                code = m.group(1)
+                code = re.sub(r'[^0-9A-Z]', '', code.upper())
+                return code[:24]
+
+            # 3) Yol sonu bloğu: en sondaki '-' sonrası 6+ uzun alfasayısal
+            last_seg = (path.split('/')[-1]) if path else ''
+            m = re.search(r'-([a-z0-9]{6,})$', last_seg, re.IGNORECASE)
+            if m:
+                code = m.group(1)
+                code = re.sub(r'[^0-9A-Z]', '', code.upper())
+                return code[:24]
+
+            return "Bulunamadı"
+        except Exception:
+            return "Bulunamadı"
+
     def close(self):
         """Tarayıcıyı kapat"""
         if self.driver:
@@ -284,7 +309,22 @@ class HepsiburadaScraper:
 # Global scraper instance
 scraper = HepsiburadaScraper()
 found_products = []
-cache = {}  # Barkod cache'i
+MAX_CACHE_SIZE = 200
+cache = OrderedDict()  # LRU cache
+
+def cache_get(key: str):
+    if key in cache:
+        value = cache.pop(key)
+        cache[key] = value  # move to end
+        return value
+    return None
+
+def cache_set(key: str, value):
+    if key in cache:
+        cache.pop(key)
+    cache[key] = value
+    while len(cache) > MAX_CACHE_SIZE:
+        cache.popitem(last=False)
 
 # Kullanıcı oturum takibi
 authenticated_users = {}
@@ -345,9 +385,10 @@ def search():
         return jsonify({'error': 'Arama terimi boş olamaz'}), 400
     
     # Cache kontrolü
-    if barcode in cache:
+    cached = cache_get(barcode)
+    if cached is not None:
         print(f"✅ Cache'den alındı: {barcode}")
-        return jsonify({'products': cache[barcode], 'cached': True})
+        return jsonify({'products': cached, 'cached': True})
     
     html_content = scraper.get_html_content(barcode)
     
@@ -359,12 +400,174 @@ def search():
     products = scraper.parse_products(html_content)
     
     # Cache'e kaydet
-    cache[barcode] = products
+    cache_set(barcode, products)
     print(f"💾 Cache'e kaydedildi: {barcode}")
     
     print(f"DEBUG: Bulunan ürün sayısı: {len(products)}")
     
     return jsonify({'products': products, 'cached': False})
+
+@app.route('/api/search-hb', methods=['POST'])
+def search_hb():
+    data = request.json
+    term = data.get('barcode', '').strip()
+    if not term:
+        return jsonify({'error': 'Arama terimi boş olamaz'}), 400
+
+    # Cache kontrol
+    cached = cache_get(term)
+    if cached is not None:
+        return jsonify({'products': cached, 'cached': True})
+
+    # Selenium ile ara
+    html = scraper.get_html_content(term)
+    if not html:
+        return jsonify({'products': []})
+    products: List[Dict] = scraper.parse_products(html)
+
+    cache_set(term, products)
+    return jsonify({'products': products, 'cached': False})
+
+# (Kaldırıldı) cache-clear / driver-status / driver-restart uç noktaları
+
+# --- Yeni: Google arama (yalnızca Selenium) ---
+def parse_google_titles(html: str) -> List[str]:
+    """Google sonuç sayfasından başlıkları çıkar.
+    Birden fazla selector ile dayanıklı parse.
+    """
+    try:
+        patterns = [
+            r'<h3[^>]*>(.*?)</h3>',
+            r'<div[^>]*class="[^\"]*(?:LC20lb|vvjwJb|FCUp0c)[^\"]*"[^>]*>(.*?)</div>',
+            r'<span[^>]*role="text"[^>]*>(.*?)</span>'
+        ]
+        raw: List[str] = []
+        for pat in patterns:
+            found = re.findall(pat, html, re.DOTALL)
+            raw.extend(found)
+
+        clean: List[str] = []
+        for t in raw:
+            text = re.sub(r'<[^>]+>', '', t)
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text:
+                clean.append(text)
+
+        # Benzersiz ve anlamlı uzunlukta olanları topla
+        seen = set()
+        uniq: List[str] = []
+        for t in clean:
+            if len(t) < 3:
+                continue
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        return uniq[:20]
+    except Exception as e:
+        print(f"Google parse hatası: {e}")
+        return []
+
+def get_google_titles_with_selenium(query: str) -> List[str]:
+    try:
+        if not scraper.driver:
+            # Driver yoksa yeniden kurmayı dene
+            try:
+                scraper._setup_driver()
+            except Exception as _:
+                return []
+
+        url = f"https://www.google.com/search?q={query}&hl=tr&gl=tr&pws=0"
+        scraper.driver.get(url)
+        wait = WebDriverWait(scraper.driver, 8)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        scraper.driver.execute_script("window.scrollTo(0, 600);")
+        scraper.driver.execute_script("window.scrollTo(0, 1200);")
+        html = scraper.driver.page_source
+        return parse_google_titles(html)
+    except Exception as e:
+        print(f"Google Selenium hatası: {e}")
+        return []
+
+def parse_duck_titles(html: str) -> List[str]:
+    """DuckDuckGo HTML sonuçlarından başlıkları çıkar."""
+    try:
+        # html.duckduckgo.com/html çıktısında result__a linkleri var
+        titles = re.findall(r'<a[^>]*class="[^\"]*result__a[^\"]*"[^>]*>(.*?)</a>', html, re.DOTALL)
+        clean: List[str] = []
+        for t in titles:
+            text = re.sub(r'<[^>]+>', '', t)
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text:
+                clean.append(text)
+        # Eşsiz ilk 20
+        seen, uniq = set(), []
+        for t in clean:
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        return uniq[:20]
+    except Exception as e:
+        print(f"Duck parse hatası: {e}")
+        return []
+
+def parse_bing_titles(html: str) -> List[str]:
+    """Bing sonuçlarından başlıkları çıkar."""
+    try:
+        # b_algo li içindeki <h2><a> başlıkları
+        titles = re.findall(r'<li[^>]*class="[^\"]*b_algo[^\"]*"[^>]*>.*?<h2>\s*<a[^>]*>(.*?)</a>', html, re.DOTALL)
+        clean: List[str] = []
+        for t in titles:
+            text = re.sub(r'<[^>]+>', '', t)
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text:
+                clean.append(text)
+        seen, uniq = set(), []
+        for t in clean:
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        return uniq[:20]
+    except Exception as e:
+        print(f"Bing parse hatası: {e}")
+        return []
+
+@app.route('/api/search-google', methods=['POST'])
+def search_google():
+    data = request.json
+    query = data.get('query', '').strip()
+    if not query:
+        return jsonify({'error': 'Arama terimi boş olamaz'}), 400
+
+    try:
+        titles = get_google_titles_with_selenium(query)
+        products = [{'name': t, 'stock_code': '', 'image_url': ''} for t in titles]
+        return jsonify({'products': products})
+    except Exception as e:
+        print(f"Google Selenium genel hata: {e}")
+        return jsonify({'products': []})
+
+@app.route('/api/manual-add', methods=['POST'])
+def manual_add():
+    data = request.json
+    name = (data.get('name') or '').strip()
+    barcode = (data.get('barcode') or '').strip()
+    quantity = int(data.get('quantity') or 1)
+    if not name or quantity < 1:
+        return jsonify({'error': 'Geçersiz veri'}), 400
+    if barcode and not barcode.isdigit():
+        return jsonify({'error': 'Barkod sadece sayı olabilir'}), 400
+
+    new_product = {
+        'barcode': barcode,
+        'stock_code': barcode if barcode else '',
+        'name': name if quantity == 1 else f"{name} * {quantity} Adet",
+        'image_url': '',
+        'price': '',
+        'quantity': quantity,
+        'source': 'manual'
+    }
+    found_products.append(new_product)
+    return jsonify({'success': True, 'product': new_product})
 
 @app.route('/api/add', methods=['POST'])
 def add_product():
@@ -372,6 +575,8 @@ def add_product():
     barcode = data.get('barcode')
     product = data.get('product')
     quantity = data.get('quantity', 1)
+    replace_existing = data.get('replace_existing', False)
+    source = (data.get('source') or '').strip().lower() or ('google' if replace_existing else 'hb')
     
     # Aynı stok kodlu ürün var mı kontrol et
     existing_index = None
@@ -381,32 +586,61 @@ def add_product():
             break
     
     if existing_index is not None:
-        # Mevcut ürünün adetini artır
-        found_products[existing_index]['quantity'] += quantity
-        updated_qty = found_products[existing_index]['quantity']
-        
-        # Ürün adını güncelle
-        if updated_qty == 1:
-            found_products[existing_index]['name'] = product['name']
+        if replace_existing:
+            # Aynı isim mi? Aynıysa adet artır; farklıysa değiştir
+            existing_base = (found_products[existing_index].get('name') or '').split(' * ')[0].strip()
+            incoming_base = (product.get('name') or '').split(' * ')[0].strip()
+            if existing_base and incoming_base and existing_base.lower() == incoming_base.lower():
+                # Adet artır
+                found_products[existing_index]['quantity'] += quantity
+                updated_qty = found_products[existing_index]['quantity']
+                found_products[existing_index]['name'] = existing_base if updated_qty == 1 else f"{existing_base} * {updated_qty} Adet"
+                # Kaynağı koru, yoksa ata
+                if not found_products[existing_index].get('source'):
+                    found_products[existing_index]['source'] = source
+                print(f"✅ Aynı isim geldi, adet artırıldı: {existing_base} - {updated_qty} adet")
+                return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': False})
+            else:
+                # Değiştir: farklı isim seçildiğinde adedi 1'e sıfırla ve adı güncelle
+                base_name = incoming_base
+                found_products[existing_index]['quantity'] = 1
+                new_name = base_name
+                found_products[existing_index]['name'] = new_name
+                # İlgili alanları güncelle
+                if product.get('stock_code'):
+                    found_products[existing_index]['stock_code'] = product['stock_code']
+                found_products[existing_index]['image_url'] = product.get('image_url', found_products[existing_index].get('image_url', ''))
+                found_products[existing_index]['price'] = product.get('price', found_products[existing_index].get('price', ''))
+                found_products[existing_index]['source'] = source
+                print(f"♻️ Ürün değiştirildi (adet korunarak): {new_name}")
+                return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': True})
         else:
-            found_products[existing_index]['name'] = f"{product['name']} * {updated_qty} Adet"
-        
-        print(f"✅ Ürün adeti artırıldı: {product['name']} - {updated_qty} adet")
-        return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True})
+            # Mevcut davranış: adet artır
+            found_products[existing_index]['quantity'] += quantity
+            updated_qty = found_products[existing_index]['quantity']
+            
+            # Ürün adını güncelle
+            if updated_qty == 1:
+                found_products[existing_index]['name'] = product['name']
+            else:
+                found_products[existing_index]['name'] = f"{product['name']} * {updated_qty} Adet"
+            
+            print(f"✅ Ürün adeti artırıldı: {product['name']} - {updated_qty} adet")
+            return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True})
     else:
         # Yeni ürün ekle
-        if quantity == 1:
-            product_name = product['name']
-        else:
-            product_name = f"{product['name']} * {quantity} Adet"
+        base_name = product.get('name', '')
+        product_name = base_name if quantity == 1 else f"{base_name} * {quantity} Adet"
+        stock_code = product.get('stock_code') or barcode or ''
         
         new_product = {
             'barcode': barcode,
-            'stock_code': product['stock_code'],
+            'stock_code': stock_code,
             'name': product_name,
             'image_url': product.get('image_url', ''),
             'price': product.get('price', ''),
-            'quantity': quantity
+            'quantity': quantity,
+            'source': source
         }
         
         found_products.append(new_product)
@@ -448,6 +682,34 @@ def update_quantity():
     found_products[index]['name'] = product_name
     
     return jsonify({'success': True, 'product': found_products[index]})
+
+@app.route('/api/edit-product', methods=['POST'])
+def edit_product():
+    data = request.json
+    index = data.get('index')
+    name = (data.get('name') or '').strip()
+    barcode = (data.get('barcode') or '').strip()
+    if index is None or not (0 <= index < len(found_products)):
+        return jsonify({'error': 'Geçersiz index'}), 400
+    if not name:
+        return jsonify({'error': 'İsim boş olamaz'}), 400
+    if barcode and not barcode.isdigit():
+        return jsonify({'error': 'Barkod sadece sayı olabilir'}), 400
+
+    product = found_products[index]
+    qty = product.get('quantity', 1)
+    base_name = name
+    product_name = base_name if qty == 1 else f"{base_name} * {qty} Adet"
+    product['name'] = product_name
+    product['barcode'] = barcode
+    # Google kaynaklı ürünlerde düzenleme sonrası barkod ve stok kodu eşitlensin
+    if barcode:
+        if (product.get('source') or '').lower() == 'google':
+            product['stock_code'] = barcode
+        elif not product.get('stock_code'):
+            product['stock_code'] = barcode
+    found_products[index] = product
+    return jsonify({'success': True, 'product': product})
 
 @app.route('/api/export', methods=['GET'])
 def export_excel():
@@ -522,7 +784,7 @@ if __name__ == '__main__':
     # Tarayıcıyı ayrı bir thread'de aç
     def open_browser():
         time.sleep(1.5)  # Sunucunun başlaması için bekle
-        webbrowser.open('http://127.0.0.1:5000')
+        webbrowser.open('http://127.0.0.1:5001')
     
     threading.Thread(target=open_browser).start()
-    app.run(debug=False, port=5000, use_reloader=False)
+    app.run(debug=False, port=5001, use_reloader=False)

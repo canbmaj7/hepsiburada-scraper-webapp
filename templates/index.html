@@ -115,6 +115,7 @@
         .search-form {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
         
         .search-input {
@@ -142,6 +143,7 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            min-height: 44px;
         }
         
         .btn-primary:hover {
@@ -197,6 +199,11 @@
             flex-direction: column;
             height: 100%;
         }
+        /* Google sonuçları için yatay kart */
+        .product-card.horizontal {
+            flex-direction: row;
+            align-items: stretch;
+        }
         
         .product-card:hover {
             transform: translateY(-5px);
@@ -212,12 +219,56 @@
             padding: 10px;
             flex-shrink: 0;
         }
+        .product-card.horizontal .product-image {
+            width: 140px;
+            height: 140px;
+            padding: 8px;
+            border-right: 2px solid #e2e8f0;
+        }
         
         .product-info {
             padding: 15px;
             display: flex;
             flex-direction: column;
             flex-grow: 1;
+        }
+
+        /* Kaynak rozetleri */
+        .source-badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600; }
+        .source-badge.hb { background:#ffe4d6; color:#9a3412; }
+        .source-badge.google { background:#dbeafe; color:#1e3a8a; }
+        .source-badge.manual { background:#ede9fe; color:#5b21b6; }
+
+        /* Driver durum rozeti */
+        .driver-badge { padding:4px 10px; border-radius:12px; font-weight:600; font-size:12px; }
+        .driver-ok { background:#dcfce7; color:#166534; }
+        .driver-bad { background:#fee2e2; color:#991b1b; }
+
+        /* Responsive iyileştirmeler */
+        @media (max-width: 992px) {
+            .container { padding: 16px; }
+            .btn-primary { padding: 12px 24px; font-size: 15px; }
+            .product-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+            .product-image { height: 180px; }
+        }
+
+        @media (max-width: 768px) {
+            .search-box { padding: 20px; }
+            .search-input { width: 100%; }
+            .btn-primary { width: 100%; padding: 12px 16px; min-height: 44px; }
+            .product-list { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+            .product-image { height: 160px; }
+            .product-card.horizontal .product-image { width: 110px; height: 110px; }
+            .header { padding: 14px 0; }
+            body { padding-top: 72px; }
+            .quantity-btn { width: 44px; height: 44px; font-size: 18px; }
+        }
+
+        @media (max-width: 480px) {
+            .header-content { gap: 8px; }
+            .product-list { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+            .product-image { height: 140px; }
+            .product-info { padding: 12px; }
         }
         
         .product-name {
@@ -445,8 +496,8 @@
         }
         
         .quantity-btn {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             border: none;
             border-radius: 50%;
             font-size: 18px;
@@ -887,9 +938,11 @@
 
     <div class="container">
         <div class="search-box">
-            <form class="search-form" onsubmit="searchProducts(event)">
+            <form class="search-form" onsubmit="return false;">
                 <input type="text" id="barcodeInput" class="search-input" placeholder="Barkod veya ürün ismi girin..." required>
-                <button type="submit" id="searchBtn" class="btn-primary" disabled>🔍 Ara</button>
+                <button type="button" id="hbSearchBtn" class="btn-primary" disabled onclick="searchHB()">🛍️ HB'de Ara</button>
+                <button type="button" id="ggSearchBtn" class="btn-primary" disabled onclick="searchGoogle()">🔎 Google'da Ara</button>
+                <button type="button" id="manualAddBtn" class="btn-primary" onclick="openManualAddModal()">➕ Ürün Ekle</button>
             </form>
         </div>
 
@@ -933,6 +986,36 @@
         </div>
     </div>
 
+    <div id="manualModal" class="modal">
+        <div class="modal-content">
+            <h3>Manuel Ürün Ekle</h3>
+            <label for="manualName" style="display:block;margin-bottom:6px;color:#e2e8f0;">Ürün adı</label>
+            <input type="text" id="manualName" class="quantity-input" placeholder="Ürün adı" />
+            <label for="manualBarcode" style="display:block;margin:10px 0 6px;color:#e2e8f0;">Barkod (sadece sayı)</label>
+            <input type="text" id="manualBarcode" class="quantity-input" placeholder="Barkod" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+            <label for="manualQty" style="display:block;margin:10px 0 6px;color:#e2e8f0;">Adet</label>
+            <input type="number" id="manualQty" class="quantity-input" value="1" min="1" />
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeManualModal()">İptal</button>
+                <button class="btn-add" onclick="manualAddToCart()">Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3>Ürünü Düzenle</h3>
+            <label for="editName" style="display:block;margin-bottom:6px;color:#e2e8f0;">Ürün adı</label>
+            <input type="text" id="editName" class="quantity-input" placeholder="Ürün adı" />
+            <label for="editBarcode" style="display:block;margin:10px 0 6px;color:#e2e8f0;">Barkod (sadece sayı)</label>
+            <input type="text" id="editBarcode" class="quantity-input" placeholder="Barkod" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeEditModal()">İptal</button>
+                <button class="btn-add" onclick="saveEdit()">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentProducts = [];
         let selectedProduct = null;
@@ -963,18 +1046,20 @@
         // Sayfa yüklendiğinde tema yükle
         loadTheme();
 
-        async function searchProducts(event) {
-            event.preventDefault();
-            const barcode = document.getElementById('barcodeInput').value;
-            const searchBtn = document.getElementById('searchBtn');
-            
-            // Butonu disable et ve loading göster
-            searchBtn.disabled = true;
-            searchBtn.innerHTML = '<span class="search-btn-loading"></span> Aranıyor...';
-            
+        let currentSource = 'hb';
+
+        async function searchHB() {
+            const now = Date.now();
+            if (window.__lastSearchAt && (now - window.__lastSearchAt) < 300) { return; }
+            window.__lastSearchAt = now;
+            const term = document.getElementById('barcodeInput').value.trim();
+            if (!term) return;
+            const hbBtn = document.getElementById('hbSearchBtn');
+            hbBtn.disabled = true;
+            hbBtn.innerHTML = '<span class="search-btn-loading"></span> Aranıyor...';
+
             const resultsDiv = document.getElementById('results');
             const productList = document.getElementById('productList');
-            
             resultsDiv.classList.add('show');
             productList.innerHTML = `
                 <div class="loading">
@@ -982,55 +1067,85 @@
                     <div>🔍 Aranıyor, lütfen bekleyin...</div>
                 </div>
             `;
-            
-            // Sonuç sayısını gizle
             document.getElementById('resultsCount').style.display = 'none';
-            
+
             try {
-                const response = await fetch('/api/search', {
+                const res = await fetch('/api/search-hb', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ barcode })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ barcode: term })
                 });
-                
-                const data = await response.json();
-                
+                const data = await res.json();
                 if (data.error) {
-                    productList.innerHTML = `<div class="loading">❌ ${data.error}</div>`;
+                    productList.innerHTML = `<div class=\"loading\">❌ ${data.error}</div>`;
                     return;
                 }
-                
-                currentProducts = data.products;
-                selectedBarcode = barcode;
-                
-                // Arama geçmişine ekle
-                addToSearchHistory(barcode);
-                
-                if (data.products.length === 0) {
+                currentProducts = data.products || [];
+                selectedBarcode = term;
+                addToSearchHistory(term);
+                if (currentProducts.length === 0) {
                     productList.innerHTML = '<div class="loading">❌ Ürün bulunamadı</div>';
                     return;
                 }
-                
-                // Her zaman ürünleri göster
-                displayProducts(data.products);
-                
-                // Sonuç sayısını göster
+                currentSource = 'hb';
+                displayProducts(currentProducts);
                 const resultsCount = document.getElementById('resultsCount');
-                if (data.products.length > 0) {
-                    resultsCount.textContent = `${data.products.length} ürün bulundu`;
-                    resultsCount.style.display = 'block';
-                } else {
-                    resultsCount.style.display = 'none';
-                }
-                
-            } catch (error) {
+                resultsCount.textContent = `${currentProducts.length} ürün bulundu`;
+                resultsCount.style.display = 'block';
+            } catch (e) {
                 productList.innerHTML = '<div class="loading">❌ Hata oluştu</div>';
             } finally {
-                // Butonu tekrar aktif et
-                searchBtn.disabled = false;
-                searchBtn.innerHTML = '🔍 Ara';
+                hbBtn.disabled = false;
+                hbBtn.innerHTML = "🛍️ HB'de Ara";
+            }
+        }
+
+        async function searchGoogle() {
+            const now = Date.now();
+            if (window.__lastSearchAt && (now - window.__lastSearchAt) < 300) { return; }
+            window.__lastSearchAt = now;
+            const term = document.getElementById('barcodeInput').value.trim();
+            if (!term) return;
+            const ggBtn = document.getElementById('ggSearchBtn');
+            ggBtn.disabled = true;
+            ggBtn.innerHTML = '<span class="search-btn-loading"></span> Aranıyor...';
+
+            const resultsDiv = document.getElementById('results');
+            const productList = document.getElementById('productList');
+            resultsDiv.classList.add('show');
+            productList.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <div>🔍 Aranıyor, lütfen bekleyin...</div>
+                </div>
+            `;
+            document.getElementById('resultsCount').style.display = 'none';
+
+            try {
+                const res = await fetch('/api/search-google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: term })
+                });
+                const data = await res.json();
+                const products = data.products || [];
+                currentProducts = products;
+                selectedBarcode = term;
+                addToSearchHistory(term);
+                if (products.length === 0) {
+                    productList.innerHTML = '<div class="loading">❌ Sonuç bulunamadı</div>';
+                    return;
+                }
+                currentSource = 'google';
+                displayProducts(products);
+                const resultsCount = document.getElementById('resultsCount');
+                resultsCount.textContent = `${products.length} başlık bulundu`;
+                resultsCount.style.display = 'block';
+            } catch (e) {
+                productList.innerHTML = '<div class="loading">❌ Hata oluştu</div>';
+            } finally {
+                ggBtn.disabled = false;
+                ggBtn.innerHTML = "🔎 Google'da Ara";
             }
         }
         
@@ -1052,21 +1167,67 @@
             const productsToShow = products.slice(startIndex, endIndex);
             
             // Ürünleri göster
+            // Google sonuçlarında tek sütun (tam genişlik) göster
+            if (currentSource === 'google') {
+                productList.style.gridTemplateColumns = '1fr';
+            } else {
+                productList.style.gridTemplateColumns = 'repeat(auto-fill, minmax(250px, 1fr))';
+            }
+
             productList.innerHTML = productsToShow.map((product, index) => {
                 const globalIndex = startIndex + index;
+                const hasImage = !!(product.image_url);
+                const cardCls = currentSource === 'google' ? 'product-card horizontal' : 'product-card';
+                // Google için özel yatay ve sade kart (resim ve stok yok)
+                if (currentSource === 'google') {
+                    return `
+                        <div class="${cardCls}" style="gap: 12px; padding: 12px;">
+                            <div class="product-info" style="flex-direction: row; align-items: center; justify-content: space-between; width: 100%; gap: 12px; padding:0;">
+                                <div class="product-name" style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${product.name}">${product.name}</div>
+                                <div class="quantity-controls" style="margin:0;">
+                                    <button class="quantity-btn quantity-btn-minus" onclick="decreaseQuantity(${globalIndex})">-</button>
+                                    <div class="quantity-display" id="qty-${globalIndex}">1</div>
+                                    <button class="quantity-btn quantity-btn-plus" onclick="increaseQuantity(${globalIndex})">+</button>
+                                </div>
+                                <div class="product-actions" style="min-width:140px;">
+                                    <button class="btn-primary add-product-btn" style="width: 100%;" onclick="addProductToCart(${globalIndex})" data-index="${globalIndex}">🛒 Sepete Ekle</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                if (hasImage) {
+                    return `
+                        <div class="${cardCls}">
+                            <img src="${product.image_url}" alt="${product.name}" class="product-image" onerror="this.style.display='none'">
+                            <div class="product-info">
+                                <div class="product-name">${product.name}</div>
+                                <div class="product-stock">Stok: ${product.stock_code || ''}</div>
+                                <div class="quantity-controls">
+                                    <button class="quantity-btn quantity-btn-minus" onclick="decreaseQuantity(${globalIndex})">-</button>
+                                    <div class="quantity-display" id="qty-${globalIndex}">1</div>
+                                    <button class="quantity-btn quantity-btn-plus" onclick="increaseQuantity(${globalIndex})">+</button>
+                                </div>
+                                <div class="product-actions">
+                                    <button class="btn-primary add-product-btn" style="width: 100%;" onclick="addProductToCart(${globalIndex})" data-index="${globalIndex}">Sepete Ekle</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                // Görselsiz kompakt kart
                 return `
-                    <div class="product-card">
-                        <img src="${product.image_url || 'https://via.placeholder.com/200'}" alt="${product.name}" class="product-image" onerror="this.src='https://via.placeholder.com/200'">
-                        <div class="product-info">
+                    <div class="${cardCls}" style="display:flex;flex-direction:${currentSource === 'google' ? 'row' : 'column'};">
+                        <div class="product-info" style="width:100%">
                             <div class="product-name">${product.name}</div>
-                            <div class="product-stock">Stok: ${product.stock_code}</div>
+                            <div class="product-stock">${currentSource === 'google' ? '' : `Stok: ${product.stock_code || ''}`}</div>
                             <div class="quantity-controls">
                                 <button class="quantity-btn quantity-btn-minus" onclick="decreaseQuantity(${globalIndex})">-</button>
                                 <div class="quantity-display" id="qty-${globalIndex}">1</div>
                                 <button class="quantity-btn quantity-btn-plus" onclick="increaseQuantity(${globalIndex})">+</button>
                             </div>
                             <div class="product-actions">
-                                <button class="btn-primary add-product-btn" style="width: 100%;" onclick="addProductToCart(${globalIndex})" data-index="${globalIndex}">Sepete Ekle</button>
+                                <button class="btn-primary add-product-btn" style="width: 100%;" onclick="addProductToCart(${globalIndex})" data-index="${globalIndex}">🛒 Sepete Ekle</button>
                             </div>
                         </div>
                     </div>
@@ -1147,8 +1308,16 @@
                 
                 if (data.success) {
                     closeModal();
-                    loadCart();
+                    await loadCart();
                     document.getElementById('barcodeInput').value = '';
+                    if (currentSource === 'google') {
+                        // Son eklenen/degisen öğeyi bul (aynı barkodlu son öğe)
+                        let openIndex = -1;
+                        for (let i = cart.length - 1; i >= 0; i--) {
+                            if ((cart[i].barcode || '') === (selectedBarcode || '')) { openIndex = i; break; }
+                        }
+                        if (openIndex >= 0) { openEditModal(openIndex); }
+                    }
                 }
                 
             } catch (error) {
@@ -1180,16 +1349,19 @@
             document.getElementById('cartSummaryInfo').style.display = 'flex';
             
             cartList.innerHTML = cart.map((item, index) => `
-                <div class="cart-item">
-                    <img src="${item.image_url || 'https://via.placeholder.com/70'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/70'">
-                    <div class="cart-item-info">
-                        <div class="cart-item-name">${item.name}</div>
+                <div class="cart-item" style="display:flex; align-items:center; gap:12px;">
+                    <div class="cart-item-info" style="flex:1;">
+                        <div class="cart-item-name" style="display:flex; align-items:center; gap:8px;">
+                            <span class="source-badge ${item.source || 'hb'}">${item.source === 'google' ? 'Google' : (item.source === 'manual' ? 'Manuel' : 'HB')}</span>
+                            ${item.name}
+                        </div>
                         <div class="cart-item-details">
-                            Barkod: ${item.barcode} | Stok: ${item.stock_code}
+                            Barkod: ${item.barcode} ${item.stock_code ? `| Stok: ${item.stock_code}` : ''}
                             <button class="copy-barcode-btn" onclick="copyBarcode('${item.barcode}')" title="Kopyala">📋</button>
                         </div>
                     </div>
                     <div class="cart-actions">
+                        <button onclick="openEditModal(${index})" class="delete-btn" style="background:#718096;">✏️ Düzenle</button>
                         <div class="cart-quantity">
                             <button class="cart-quantity-minus" onclick="decreaseCartQuantity(${index})">-</button>
                             <div class="cart-quantity-display">${item.quantity || 1}</div>
@@ -1200,6 +1372,8 @@
                 </div>
             `).join('');
         }
+
+        // (Kaldırıldı) Cache/Driver butonları ve rozeti
         
         async function clearCart() {
             if (!confirm('Tüm ürünleri silmek istediğinize emin misiniz?')) {
@@ -1277,21 +1451,93 @@
             }
         }
         
-        // Input değiştiğinde butonu aktif et
+        // Input değiştiğinde butonları aktif et
         document.getElementById('barcodeInput').addEventListener('input', function(event) {
-            const searchBtn = document.getElementById('searchBtn');
-            searchBtn.disabled = event.target.value.trim() === '';
+            const disabled = event.target.value.trim() === '';
+            const hb = document.getElementById('hbSearchBtn');
+            const gg = document.getElementById('ggSearchBtn');
+            if (hb) hb.disabled = disabled;
+            if (gg) gg.disabled = disabled;
         });
         
-        // Enter tuşu ile arama
+        // Enter tuşu ile HB arama
         document.getElementById('barcodeInput').addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
-                const searchBtn = document.getElementById('searchBtn');
-                if (!searchBtn.disabled) {
-                    searchProducts(event);
+                const hb = document.getElementById('hbSearchBtn');
+                if (hb && !hb.disabled) {
+                    searchHB();
                 }
             }
         });
+
+        function openManualAddModal() {
+            const term = document.getElementById('barcodeInput').value.trim();
+            const isAllDigits = /^\d+$/.test(term);
+            document.getElementById('manualName').value = isAllDigits ? '' : (term || '');
+            document.getElementById('manualBarcode').value = isAllDigits ? term : '';
+            document.getElementById('manualQty').value = 1;
+            document.getElementById('manualModal').classList.add('show');
+        }
+
+        function closeManualModal() {
+            document.getElementById('manualModal').classList.remove('show');
+        }
+
+        async function manualAddToCart() {
+            const name = (document.getElementById('manualName').value || '').trim();
+            const barcode = (document.getElementById('manualBarcode').value || '').trim();
+            const quantity = parseInt(document.getElementById('manualQty').value || '1', 10);
+            if (!name || quantity < 1) return;
+            if (barcode && !/^\d+$/.test(barcode)) { alert('Barkod sadece sayı olabilir'); return; }
+            try {
+                const res = await fetch('/api/manual-add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, barcode, quantity, source: 'manual' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeManualModal();
+                    loadCart();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Sepette düzenleme
+        let editingIndex = null;
+        function openEditModal(index) {
+            editingIndex = index;
+            const item = cart[index];
+            const baseName = (item.name || '').split(' * ')[0];
+            document.getElementById('editName').value = baseName;
+            document.getElementById('editBarcode').value = item.barcode || '';
+            document.getElementById('editModal').classList.add('show');
+        }
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('show');
+        }
+        async function saveEdit() {
+            const name = (document.getElementById('editName').value || '').trim();
+            const barcode = (document.getElementById('editBarcode').value || '').trim();
+            if (!name) return;
+            if (barcode && !/^\d+$/.test(barcode)) { alert('Barkod sadece sayı olabilir'); return; }
+            try {
+                const res = await fetch('/api/edit-product', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index: editingIndex, name, barcode })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeEditModal();
+                    loadCart();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
         
         // Ürün adeti kontrolü
         function increaseQuantity(index) {
@@ -1331,8 +1577,10 @@
                     },
                     body: JSON.stringify({
                         barcode: selectedBarcode,
-                        product: product,
-                        quantity: quantity
+                        product: { ...product, stock_code: (product.stock_code || selectedBarcode) },
+                        quantity: quantity,
+                        replace_existing: currentSource === 'google',
+                        source: currentSource
                     })
                 });
                 
@@ -1344,8 +1592,15 @@
                     addBtn.style.background = '#48bb78';
                     addBtn.classList.add('success');
                     
-                    loadCart();
+                    await loadCart();
                     document.getElementById('barcodeInput').value = '';
+                    if (currentSource === 'google') {
+                        let openIndex = -1;
+                        for (let i = cart.length - 1; i >= 0; i--) {
+                            if ((cart[i].barcode || '') === (selectedBarcode || '')) { openIndex = i; break; }
+                        }
+                        if (openIndex >= 0) { openEditModal(openIndex); }
+                    }
                     
                     // 2 saniye sonra normale dön
                     setTimeout(() => {
