@@ -586,47 +586,39 @@ def add_product():
             break
     
     if existing_index is not None:
-        if replace_existing:
-            # Aynı isim mi? Aynıysa adet artır; farklıysa değiştir
-            existing_base = (found_products[existing_index].get('name') or '').split(' * ')[0].strip()
-            incoming_base = (product.get('name') or '').split(' * ')[0].strip()
-            if existing_base and incoming_base and existing_base.lower() == incoming_base.lower():
-                # Adet artır
-                found_products[existing_index]['quantity'] += quantity
-                updated_qty = found_products[existing_index]['quantity']
-                found_products[existing_index]['name'] = existing_base if updated_qty == 1 else f"{existing_base} * {updated_qty} Adet"
-                # Kaynağı koru, yoksa ata
-                if not found_products[existing_index].get('source'):
-                    found_products[existing_index]['source'] = source
-                print(f"✅ Aynı isim geldi, adet artırıldı: {existing_base} - {updated_qty} adet")
-                return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': False})
-            else:
-                # Değiştir: farklı isim seçildiğinde adedi 1'e sıfırla ve adı güncelle
-                base_name = incoming_base
-                found_products[existing_index]['quantity'] = 1
-                new_name = base_name
-                found_products[existing_index]['name'] = new_name
-                # İlgili alanları güncelle
-                if product.get('stock_code'):
-                    found_products[existing_index]['stock_code'] = product['stock_code']
-                found_products[existing_index]['image_url'] = product.get('image_url', found_products[existing_index].get('image_url', ''))
-                found_products[existing_index]['price'] = product.get('price', found_products[existing_index].get('price', ''))
-                found_products[existing_index]['source'] = source
-                print(f"♻️ Ürün değiştirildi (adet korunarak): {new_name}")
-                return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': True})
-        else:
-            # Mevcut davranış: adet artır
+        # HB: her zaman adet artır
+        if not replace_existing:
             found_products[existing_index]['quantity'] += quantity
             updated_qty = found_products[existing_index]['quantity']
-            
-            # Ürün adını güncelle
-            if updated_qty == 1:
-                found_products[existing_index]['name'] = product['name']
-            else:
-                found_products[existing_index]['name'] = f"{product['name']} * {updated_qty} Adet"
-            
-            print(f"✅ Ürün adeti artırıldı: {product['name']} - {updated_qty} adet")
+            base_incoming = (product.get('name') or '').split(' * ')[0]
+            found_products[existing_index]['name'] = base_incoming if updated_qty == 1 else f"{base_incoming} * {updated_qty} Adet"
+            if not found_products[existing_index].get('source'):
+                found_products[existing_index]['source'] = source
+            print(f"✅ (HB) Adet artırıldı: {base_incoming} - {updated_qty} adet")
             return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True})
+        
+        # Google: isim aynıysa adet artır, farklıysa değiştir (adet=1)
+        existing_base = (found_products[existing_index].get('name') or '').split(' * ')[0].strip()
+        incoming_base = (product.get('name') or '').split(' * ')[0].strip()
+        if existing_base.lower() == incoming_base.lower():
+            found_products[existing_index]['quantity'] += quantity
+            updated_qty = found_products[existing_index]['quantity']
+            found_products[existing_index]['name'] = existing_base if updated_qty == 1 else f"{existing_base} * {updated_qty} Adet"
+            if not found_products[existing_index].get('source'):
+                found_products[existing_index]['source'] = source
+            print(f"✅ (Google) Aynı isim, adet artırıldı: {existing_base} - {updated_qty} adet")
+            return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': False})
+        else:
+            # Değiştir - adedi 1'e çek ve adı güncelle
+            found_products[existing_index]['quantity'] = 1
+            found_products[existing_index]['name'] = incoming_base
+            if product.get('stock_code'):
+                found_products[existing_index]['stock_code'] = product['stock_code']
+            found_products[existing_index]['image_url'] = product.get('image_url', found_products[existing_index].get('image_url', ''))
+            found_products[existing_index]['price'] = product.get('price', found_products[existing_index].get('price', ''))
+            found_products[existing_index]['source'] = source
+            print(f"♻️ (Google) Farklı isim, ürün değiştirildi: {incoming_base}")
+            return jsonify({'success': True, 'product': found_products[existing_index], 'updated': True, 'replaced': True})
     else:
         # Yeni ürün ekle
         base_name = product.get('name', '')
@@ -717,6 +709,15 @@ def export_excel():
         return jsonify({'error': 'Export edilecek ürün yok'}), 400
     
     try:
+        # Barkod doğrulama: sadece rakam
+        invalid = []
+        for idx, p in enumerate(found_products):
+            bc = str(p.get('barcode') or '').strip()
+            if bc and not bc.isdigit():
+                invalid.append({'index': idx, 'name': p.get('name', ''), 'barcode': bc})
+        if invalid:
+            return jsonify({'error': 'Lütfen barkodları sadece sayı olacak şekilde düzenleyin.', 'invalid': invalid}), 400
+
         weekday_map = {0:'Pazartesi',1:'Salı',2:'Çarşamba',3:'Perşembe',4:'Cuma',5:'Cumartesi',6:'Pazar'}
         today_day = weekday_map[datetime.now().weekday()]
         

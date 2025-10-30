@@ -1420,11 +1420,34 @@
         }
         
         async function exportToExcel() {
-            if (cart.length === 0) {
-                return;
+            if (cart.length === 0) { return; }
+            try {
+                const res = await fetch('/api/export');
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({ error: 'Export hatası' }));
+                    const msg = (data && data.error) ? data.error : 'Export hatası';
+                    if (data && Array.isArray(data.invalid) && data.invalid.length) {
+                        const details = data.invalid.map(it => `- ${it.barcode} (${it.name})`).join('\n');
+                        alert(`${msg}\n\nDüzenlenmesi gereken barkodlar:\n${details}`);
+                    } else {
+                        alert(msg);
+                    }
+                    return;
+                }
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Sunucudan gelen dosya adını çıkaramazsak varsayılan kullan
+                a.download = 'bulunanlar.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Export sırasında hata oluştu');
+                console.error(e);
             }
-            
-            window.location.href = '/api/export';
         }
         
         async function shutdownApp() {
