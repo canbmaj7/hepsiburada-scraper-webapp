@@ -712,6 +712,10 @@
         
         body.dark-mode .cart-summary-info {
             background: #1a202c;
+            color: #e2e8f0;
+        }
+        body.dark-mode .cart-summary-info span:first-child {
+            color: #cbd5e0;
         }
         
         .cart-total {
@@ -729,6 +733,10 @@
         
         body.dark-mode .search-history {
             background: #2d3748;
+            color: #e2e8f0;
+        }
+        body.dark-mode .search-history strong {
+            color: #cbd5e0;
         }
         
         .search-history-item {
@@ -739,10 +747,12 @@
             border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s;
+            color: #2d3748;
+            font-size: 13px;
         }
         
         body.dark-mode .search-history-item {
-            background: #1a202c;
+            background: #4a5568;
             color: #e2e8f0;
         }
         
@@ -1348,7 +1358,7 @@
             document.getElementById('cartTotalQuantity').textContent = totalQuantity;
             document.getElementById('cartSummaryInfo').style.display = 'flex';
             
-            cartList.innerHTML = cart.map((item, index) => `
+            cartList.innerHTML = cart.slice().reverse().map((item, index) => `
                 <div class="cart-item" style="display:flex; align-items:center; gap:12px;">
                     <div class="cart-item-info" style="flex:1;">
                         <div class="cart-item-name" style="display:flex; align-items:center; gap:8px;">
@@ -1617,12 +1627,16 @@
                     
                     await loadCart();
                     document.getElementById('barcodeInput').value = '';
-                    if (currentSource === 'google') {
-                        let openIndex = -1;
-                        for (let i = cart.length - 1; i >= 0; i--) {
-                            if ((cart[i].barcode || '') === (selectedBarcode || '')) { openIndex = i; break; }
+                    // Barkod kontrolü: harf içeriyorsa düzenleme modalını aç
+                    let openIndex = -1;
+                    for (let i = cart.length - 1; i >= 0; i--) {
+                        if ((cart[i].barcode || '') === (selectedBarcode || '')) { openIndex = i; break; }
+                    }
+                    if (openIndex >= 0) {
+                        const bc = cart[openIndex].barcode || '';
+                        if (bc && !/^\d+$/.test(bc)) {
+                            openEditModal(openIndex);
                         }
-                        if (openIndex >= 0) { openEditModal(openIndex); }
                     }
                     
                     // 2 saniye sonra normale dön
@@ -1724,13 +1738,15 @@
             let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
             
             // Varsa çıkar, yoksa ekle
-            history = history.filter(item => item !== searchTerm);
-            history.unshift(searchTerm);
-            
-            // Son 5 aramayı tut
-            if (history.length > 5) {
-                history = history.slice(0, 5);
-            }
+            const now = Date.now();
+            // Eski formatı destekle (string) ve yeni formatı da (term string'ini kontrol et)
+            history = history.filter(item => {
+                if (typeof item === 'string') {
+                    return item !== searchTerm;
+                }
+                return item.term !== searchTerm;
+            });
+            history.unshift({ term: searchTerm, timestamp: now });
             
             localStorage.setItem('searchHistory', JSON.stringify(history));
             displaySearchHistory();
@@ -1741,20 +1757,34 @@
             const historyDiv = document.getElementById('searchHistory');
             const historyItems = document.getElementById('searchHistoryItems');
             
-            if (history.length === 0) {
+            // Son 2 gün içindeki aramaları filtrele
+            const twoDaysAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
+            const recentHistory = history.filter(item => {
+                if (typeof item === 'string') return true; // Eski format destekle
+                return item.timestamp >= twoDaysAgo;
+            });
+            
+            if (recentHistory.length === 0) {
                 historyDiv.style.display = 'none';
+                // Eski veriyi temizle
+                if (history.length > 0) {
+                    localStorage.setItem('searchHistory', JSON.stringify([]));
+                }
                 return;
             }
             
             historyDiv.style.display = 'block';
-            historyItems.innerHTML = history.map(item => `
-                <span class="search-history-item" onclick="searchFromHistory('${item}')">${item}</span>
-            `).join('');
+            historyItems.innerHTML = recentHistory.map(item => {
+                const term = typeof item === 'string' ? item : item.term;
+                return `<span class="search-history-item" onclick="searchFromHistory('${term}')">${term}</span>`;
+            }).join('');
         }
         
         function searchFromHistory(term) {
             document.getElementById('barcodeInput').value = term;
-            searchProducts(new Event('submit'));
+            // Input event'i tetikle ki butonlar aktif olsun
+            document.getElementById('barcodeInput').dispatchEvent(new Event('input'));
+            searchHB();
         }
         
         // Sayfa yüklendiğinde sepeti ve geçmişi yükle

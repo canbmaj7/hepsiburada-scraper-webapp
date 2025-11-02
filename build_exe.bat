@@ -29,7 +29,12 @@ python -m PyInstaller --onefile --windowed ^
     --hidden-import=threading ^
     --hidden-import=ctypes ^
     --hidden-import=dotenv ^
-    --hidden-import=sys ^
+    --hidden-import=requests ^
+    --hidden-import=urllib3 ^
+    --hidden-import=certifi ^
+    --hidden-import=charset_normalizer ^
+    --collect-all=selenium ^
+    --collect-all=flask ^
     app.py
 
 echo.

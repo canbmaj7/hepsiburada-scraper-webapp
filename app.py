@@ -3,7 +3,6 @@ import re
 import time
 import sys
 from typing import List, Dict
-from collections import OrderedDict
 from datetime import datetime
 import pandas as pd
 import os
@@ -309,22 +308,6 @@ class HepsiburadaScraper:
 # Global scraper instance
 scraper = HepsiburadaScraper()
 found_products = []
-MAX_CACHE_SIZE = 200
-cache = OrderedDict()  # LRU cache
-
-def cache_get(key: str):
-    if key in cache:
-        value = cache.pop(key)
-        cache[key] = value  # move to end
-        return value
-    return None
-
-def cache_set(key: str, value):
-    if key in cache:
-        cache.pop(key)
-    cache[key] = value
-    while len(cache) > MAX_CACHE_SIZE:
-        cache.popitem(last=False)
 
 # Kullanıcı oturum takibi
 authenticated_users = {}
@@ -384,12 +367,6 @@ def search():
     if not barcode:
         return jsonify({'error': 'Arama terimi boş olamaz'}), 400
     
-    # Cache kontrolü
-    cached = cache_get(barcode)
-    if cached is not None:
-        print(f"✅ Cache'den alındı: {barcode}")
-        return jsonify({'products': cached, 'cached': True})
-    
     html_content = scraper.get_html_content(barcode)
     
     if not html_content:
@@ -398,10 +375,6 @@ def search():
     print(f"DEBUG: HTML uzunluğu: {len(html_content)}")
     
     products = scraper.parse_products(html_content)
-    
-    # Cache'e kaydet
-    cache_set(barcode, products)
-    print(f"💾 Cache'e kaydedildi: {barcode}")
     
     print(f"DEBUG: Bulunan ürün sayısı: {len(products)}")
     
@@ -414,18 +387,12 @@ def search_hb():
     if not term:
         return jsonify({'error': 'Arama terimi boş olamaz'}), 400
 
-    # Cache kontrol
-    cached = cache_get(term)
-    if cached is not None:
-        return jsonify({'products': cached, 'cached': True})
-
     # Selenium ile ara
     html = scraper.get_html_content(term)
     if not html:
         return jsonify({'products': []})
     products: List[Dict] = scraper.parse_products(html)
 
-    cache_set(term, products)
     return jsonify({'products': products, 'cached': False})
 
 # (Kaldırıldı) cache-clear / driver-status / driver-restart uç noktaları
@@ -700,6 +667,9 @@ def edit_product():
             product['stock_code'] = barcode
         elif not product.get('stock_code'):
             product['stock_code'] = barcode
+    else:
+        # Barkod silindiğinde stok kodunu da sil
+        product['stock_code'] = ''
     found_products[index] = product
     return jsonify({'success': True, 'product': product})
 
