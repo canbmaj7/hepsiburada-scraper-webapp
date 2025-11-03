@@ -18,6 +18,7 @@ echo [2/3] EXE olusturuluyor (bu biraz zaman alabilir)...
 python -m PyInstaller --onefile --windowed ^
     --name "HepsiburadaArama" ^
     --icon="app_icon.ico" ^
+    --runtime-tmpdir "%LOCALAPPDATA%\HBAppRuntime" ^
     --add-data "chromedriver.exe;." ^
     --add-data "templates;templates" ^
     --add-data ".env;." ^
