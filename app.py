@@ -755,6 +755,13 @@ if __name__ == '__main__':
     import sys
     import ctypes
     
+    # Konsolu gizle (Windows'ta) - EN BAŞTA
+    if sys.platform == 'win32':
+        try:
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+        except:
+            pass
+    
     # Tekil instance kontrolü: mutex ve port
     try:
         existing_running = False
@@ -783,13 +790,6 @@ if __name__ == '__main__':
     except Exception:
         # Beklenmedik durumda normal akışa devam et
         pass
-    
-    # Konsolu gizle (Windows'ta)
-    if sys.platform == 'win32':
-        try:
-            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
-        except:
-            pass
     
     # Tarayıcıyı ayrı bir thread'de aç
     def open_browser():
