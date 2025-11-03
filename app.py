@@ -3,6 +3,7 @@ import re
 import time
 import sys
 from typing import List, Dict
+import socket
 from datetime import datetime
 import pandas as pd
 import os
@@ -322,6 +323,15 @@ def check_auth():
         return True
     
     return False
+
+def is_port_in_use(port: int) -> bool:
+    """Belirtilen port dinlemede mi?"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            return s.connect_ex(('127.0.0.1', port)) == 0
+    except Exception:
+        return False
 
 @app.route('/')
 def index():
@@ -744,6 +754,33 @@ if __name__ == '__main__':
     import threading
     import sys
     import ctypes
+    
+    # Tekil instance kontrolü: mutex ve port
+    try:
+        existing_running = False
+        if sys.platform == 'win32':
+            try:
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetLastError(0)
+                mutex = kernel32.CreateMutexW(None, True, 'HB_SINGLETON_MUTEX')
+                already = ctypes.GetLastError() == 183
+                if already or is_port_in_use(5001):
+                    existing_running = True
+            except Exception:
+                if is_port_in_use(5001):
+                    existing_running = True
+        else:
+            if is_port_in_use(5001):
+                existing_running = True
+
+        if existing_running:
+            try:
+                webbrowser.open('http://127.0.0.1:5001')
+            finally:
+                sys.exit(0)
+    except Exception:
+        # Beklenmedik durumda normal akışa devam et
+        pass
     
     # Konsolu gizle (Windows'ta)
     if sys.platform == 'win32':
