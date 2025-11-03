@@ -100,10 +100,13 @@ class HepsiburadaScraper:
     
     def __init__(self):
         self.driver = None
-        self._setup_driver()
+        # Driver'ı başlangıçta açma, ilk kullanımda açılacak (lazy init)
     
     def _setup_driver(self):
         """Chrome driver'ı kur - Hızlandırılmış ve optimize edilmiş"""
+        if self.driver:
+            return  # Driver zaten var, yeniden oluşturma
+        
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--disable-blink-features=AutomationControlled")
@@ -152,13 +155,19 @@ class HepsiburadaScraper:
 
     def get_html_content(self, search_term: str) -> str:
         """Hepsiburada'dan arama yapıp HTML içeriğini al - EXE için optimize"""
+        # Driver yoksa oluştur (lazy initialization)
+        if not self.driver:
+            print("🚀 ChromeDriver başlatılıyor...")
+            self._setup_driver()
+        
+        if not self.driver:
+            print("❌ Driver oluşturulamadı")
+            return ""
+        
         max_retries = 3  # EXE için daha fazla deneme
         
         for attempt in range(max_retries):
             try:
-                if not self.driver:
-                    print("❌ Driver bulunamadı")
-                    return ""
                 
                 search_url = f"https://www.hepsiburada.com/ara?q={search_term}"
                 print(f"🔍 Deneme {attempt + 1}/{max_retries}: {search_url}")
@@ -763,33 +772,34 @@ if __name__ == '__main__':
             pass
     
     # Tekil instance kontrolü: mutex ve port
-    try:
-        existing_running = False
-        if sys.platform == 'win32':
-            try:
-                kernel32 = ctypes.windll.kernel32
-                kernel32.SetLastError(0)
-                mutex = kernel32.CreateMutexW(None, True, 'HB_SINGLETON_MUTEX')
-                already = ctypes.GetLastError() == 183
-                if already or is_port_in_use(5001):
+    existing_running = False
+    app_mutex = None
+    
+    if sys.platform == 'win32':
+        try:
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetLastError(0)
+            app_mutex = kernel32.CreateMutexW(None, True, 'HB_SINGLETON_MUTEX')
+            if app_mutex == 0:
+                # Mutex oluşturulamadı, port kontrolüne bak
+                existing_running = is_port_in_use(5001)
+            else:
+                last_error = ctypes.GetLastError()
+                if last_error == 183:  # ERROR_ALREADY_EXISTS
                     existing_running = True
-            except Exception:
-                if is_port_in_use(5001):
+                elif is_port_in_use(5001):
                     existing_running = True
-        else:
-            if is_port_in_use(5001):
-                existing_running = True
+        except Exception:
+            # Hata durumunda sadece port kontrolü yap
+            existing_running = is_port_in_use(5001)
+    else:
+        existing_running = is_port_in_use(5001)
 
-        if existing_running:
-            try:
-                # Mevcut instance için sekme aç ve kısa bir gecikme sonrası çık
-                webbrowser.open_new_tab('http://127.0.0.1:5001')
-                time.sleep(1.0)
-            finally:
-                sys.exit(0)
-    except Exception:
-        # Beklenmedik durumda normal akışa devam et
-        pass
+    if existing_running:
+        # Mevcut instance için sekme aç ve çık
+        webbrowser.open_new_tab('http://127.0.0.1:5001')
+        time.sleep(1.0)
+        sys.exit(0)
     
     # Tarayıcıyı ayrı bir thread'de aç
     def open_browser():
