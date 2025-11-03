@@ -775,11 +775,11 @@ if __name__ == '__main__':
 
         if existing_running:
             try:
-                # Mevcut instance için sekme aç ve hemen çık
+                # Mevcut instance için sekme aç ve kısa bir gecikme sonrası çık
                 webbrowser.open_new_tab('http://127.0.0.1:5001')
+                time.sleep(1.0)
             finally:
-                import os as _os
-                _os._exit(0)
+                sys.exit(0)
     except Exception:
         # Beklenmedik durumda normal akışa devam et
         pass
